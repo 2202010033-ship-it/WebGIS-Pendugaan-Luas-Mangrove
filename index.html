@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pendugaan Perubahan Mangrove Masbangun 2000-2026</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <style>
+    html, body { margin: 0; height: 100%; }
+    #map { height: 100%; }
+
+    #info {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      z-index: 1100; background: white; padding: 8px 14px; max-width: 80%;
+      border-radius: 6px; font-family: sans-serif; font-size: 14px;
+    }
+
+    .panel {
+      position: absolute; z-index: 1000; background: rgba(255,255,255,0.97);
+      border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+      font-family: sans-serif; font-size: 14px; color: #1a1a1a; display: none;
+    }
+    .kepala {
+      display: flex; justify-content: space-between; align-items: center;
+      position: sticky; top: 0; z-index: 2; user-select: none; cursor: move;
+      background: #00a152; color: white; padding: 7px 10px 7px 12px;
+      font-size: 15px; font-weight: bold; border-radius: 8px 8px 0 0;
+    }
+    .tutup .kepala { border-radius: 8px; }
+    .lipat {
+      border: none; background: rgba(255,255,255,0.28); color: white; cursor: pointer;
+      width: 28px; height: 22px; border-radius: 4px; font-size: 13px; line-height: 1;
+    }
+    .lipat:hover { background: rgba(255,255,255,0.45); }
+    .isi { padding: 10px 12px; }
+    .bagian {
+      font-weight: bold; font-size: 14px; margin: 12px 0 6px; padding-top: 10px;
+      border-top: 1px solid #d5d5d5;
+    }
+
+    /* Panel grafik (kiri atas) */
+    #panelGrafik {
+      top: 10px; left: 54px; width: 390px; max-height: calc(100% - 20px);
+      overflow-y: auto; overflow-x: hidden;
+    }
+    #infoTahun { margin-bottom: 6px; line-height: 1.5; font-size: 15px; }
+    #grafik svg { width: 100%; height: auto; cursor: pointer; display: block; }
+    #ringkas { font-size: 13px; margin-top: 4px; line-height: 1.5; }
+    #catatan { font-size: 12.5px; color: #333; margin-top: 6px; line-height: 1.5; }
+
+    /* Perbandingan antar tahun */
+    .rowB {
+      background: #f3f8f5; border: 1px solid #c8dfd0; border-radius: 6px;
+      padding: 7px 9px; margin-bottom: 7px;
+    }
+    .rowB.aktif { border-color: #1e88e5; background: #eaf4fd; }
+    .rowB select { font-size: 14px; padding: 2px 3px; }
+    .rowB .hapus {
+      float: right; border: none; background: none; color: #c62828;
+      cursor: pointer; font-size: 20px; line-height: 1; padding: 0 2px;
+    }
+    .hasilB { margin-top: 6px; line-height: 1.5; font-size: 14px; }
+    #btnTambah {
+      width: 100%; padding: 7px; border: 2px dashed #00a152; background: white;
+      color: #00796b; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13.5px;
+    }
+    #btnTambah:disabled { opacity: 0.45; cursor: default; }
+
+    /* Sumber data di dalam legenda */
+    .legenda .sumber { border-top: 1px solid #ccc; margin-top: 8px; padding-top: 8px; line-height: 1.45; }
+    .legenda .sumber ol { margin: 4px 0 0; padding-left: 20px; }
+    .legenda .sumber li { margin-bottom: 3px; }
+    #pendugaan { margin-top: 6px; font-size: 12px; color: #444; }
+    #srcAwan { margin-top: 6px; font-size: 13px; padding: 5px 8px; border-radius: 4px; }
+    #srcAwan.bersih { background: #e8f5e9; color: #1b5e20; }
+    #srcAwan.berawan { background: #e3f2fd; color: #0d3c61; }
+
+    /* Panel pilih tahun (kolom kanan, di bawah legenda) */
+    .kolom { position: relative; width: 310px; box-sizing: border-box; }
+    #barisAtas { display: flex; align-items: center; gap: 10px; }
+    #btnPlay {
+      width: 38px; height: 38px; border-radius: 50%; border: none; flex-shrink: 0;
+      background: #00a152; color: white; font-size: 15px; cursor: pointer;
+    }
+    #tahunBesar { font-size: 24px; font-weight: bold; line-height: 1.15; flex: 1; }
+    #kecepatan { font-size: 12.5px; padding: 3px; }
+    #satelitTahun { font-size: 12.5px; color: #333; line-height: 1.35; margin-top: 6px; }
+    #catatanAwan {
+      display: none; margin-top: 6px; padding: 5px 8px; font-size: 12px; line-height: 1.35;
+      background: #e3f2fd; border-left: 5px solid #1e88e5; color: #0d3c61; border-radius: 4px;
+    }
+    #slider { width: 100%; margin: 8px 0 0; cursor: pointer; box-sizing: border-box; }
+    #labelSlider { display: flex; justify-content: space-between; font-size: 11px; color: #444; }
+
+    #deretTahun { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; margin-top: 8px; }
+    #deretTahun button {
+      padding: 4px 0; font-size: 11.5px; cursor: pointer;
+      border: 1px solid #aaa; border-radius: 4px; background: white; color: #111;
+    }
+    #deretTahun button:hover { background: #e8f5e9; }
+    #deretTahun button.aktif { background: #00a152; border-color: #00a152; color: white; font-weight: bold; }
+    #deretTahun button.awan { border-top: 4px solid #1e88e5; }
+    #deretTahun button.kosong { color: #aaa; }
+    #ketTombol { font-size: 11px; color: #444; margin-top: 6px; }
+
+    .label-desa { background: none; border: none; }
+    .label-desa span {
+      position: absolute; transform: translate(-50%, -50%);
+      white-space: nowrap; pointer-events: none;
+      font: bold 14px sans-serif; color: #ffffff;
+      text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+    }
+
+    .legenda {
+      background: rgba(255,255,255,0.97); padding: 0; border-radius: 8px;
+      width: 310px; box-sizing: border-box;
+      line-height: 22px; font-family: sans-serif; font-size: 13px; color: #1a1a1a;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.45);
+    }
+    .legenda label { cursor: pointer; display: block; }
+    .legenda input { margin: 0 6px 0 0; vertical-align: middle; cursor: pointer; }
+    .legenda i {
+      width: 18px; height: 14px; display: inline-block;
+      margin-right: 6px; vertical-align: middle;
+      border: 1px solid rgba(0,0,0,0.3);
+    }
+
+    @media (max-width: 900px) {
+      #panelGrafik { width: calc(100% - 70px); }
+      .legenda, .kolom { width: 250px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="info">Memuat data, mohon tunggu...</div>
+
+  <div id="panelGrafik" class="panel">
+    <div class="kepala" id="kepalaGrafik"><span>Pendugaan luas mangrove</span><button class="lipat" type="button" title="Buka/tutup">&#9662;</button></div>
+    <div id="isiGrafik" class="isi">
+      <div id="infoTahun"></div>
+      <div id="grafik"></div>
+      <div id="ringkas"></div>
+      <div id="catatan"></div>
+
+      <div class="bagian">Bandingkan antar tahun</div>
+      <div id="barisBanding"></div>
+      <button id="btnTambah" type="button">+ Tambah pembanding</button>
+    </div>
+  </div>
+
+  <div id="panelWaktu" class="panel kolom">
+    <div class="kepala" id="kepalaWaktu"><span>Pilih tahun</span><button class="lipat" type="button" title="Buka/tutup">&#9662;</button></div>
+    <div id="isiWaktu" class="isi">
+      <div id="barisAtas">
+        <button id="btnPlay" title="Putar animasi">&#9654;</button>
+        <div id="tahunBesar">-</div>
+        <select id="kecepatan" title="Kecepatan animasi">
+          <option value="1500">Lambat</option>
+          <option value="800" selected>Sedang</option>
+          <option value="350">Cepat</option>
+        </select>
+      </div>
+      <div id="satelitTahun"></div>
+      <div id="catatanAwan"></div>
+      <input type="range" id="slider" min="2000" max="2026" step="1" value="2000">
+      <div id="labelSlider"><span id="labelMin"></span><span id="labelMaks"></span></div>
+      <div id="deretTahun"></div>
+      <div id="ketTombol"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    // ===== PENGATURAN =====
+    const FILE_MANGROVE  = 'data/Mangrove_Masbangun.json';
+    const FILE_DESA      = 'data/Batas_Administrasi_Desa.json';
+    const NAMA_DESA      = 'Masbangun';
+    const KOLOM_TAHUN    = 'tahun';
+    const KOLOM_LUAS     = 'luas_ha';
+    const KOLOM_SATELIT  = 'satelit';
+    const KOLOM_TANGGAL  = 'tanggal';
+    const WARNA_MANGROVE = '#00e676';
+    const WARNA_AWAN     = '#1e88e5';
+    const TAHUN_AWAN     = [2007, 2012, 2020]; // citra yang ada gangguan awan
+
+    // ===== PETA =====
+    const map = L.map('map', { preferCanvas: true }).setView([-0.936, 109.75], 13);
+
+    map.createPane('paneMangrove'); map.getPane('paneMangrove').style.zIndex = 410;
+    map.createPane('paneBanding');  map.getPane('paneBanding').style.zIndex  = 420;
+    map.createPane('paneDesa');     map.getPane('paneDesa').style.zIndex     = 430;
+
+    const citra = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+      maxZoom: 19,
+      attribution: 'Citra dasar: Esri, Maxar, Earthstar Geographics'
+    }).addTo(map);
+
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    });
+
+    L.control.layers({ 'Citra Satelit': citra, 'OpenStreetMap': osm }, null).addTo(map);
+    L.control.scale({ imperial: false }).addTo(map);
+
+    map.attributionControl.setPrefix(false);
+    map.attributionControl.addAttribution(
+      'Sumber data: Landsat (USGS/NASA), BIG 2023 | Analisis: Bayu Seto Abimanyu');
+
+    // ===== FUNGSI BANTU =====
+    const info = document.getElementById('info');
+
+    function fmt(n) {
+      return n.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+    }
+    function bertanda(n) {
+      return (n >= 0 ? '+' : '−') + fmt(Math.abs(n));
+    }
+    function berawan(t) { return TAHUN_AWAN.indexOf(t) !== -1; }
+
+    const SENSOR_LANDSAT = {
+      '4': 'TM', '5': 'ETM', '7': 'ETM+',
+      '8': 'OLI/TIRS', '9': 'OLI-2/TIRS-2'
+    };
+    // Untuk keterangan di panel waktu: "Landsat 8 (sensor OLI/TIRS)"
+    function namaSatelit(s) {
+      if (!s) { return ''; }
+      const teks = String(s);
+      const m = teks.match(/landsat[\s_-]*(\d)/i);
+      if (m) {
+        const sensor = SENSOR_LANDSAT[m[1]];
+        return 'Landsat ' + m[1] + (sensor ? ' (sensor ' + sensor + ')' : '');
+      }
+      return teks.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    }
+    // Untuk panel sumber data: "Landsat 5 ETM"
+    function namaSumber(s) {
+      if (!s) { return ''; }
+      const m = String(s).match(/landsat[\s_-]*(\d)/i);
+      if (m) {
+        const sensor = SENSOR_LANDSAT[m[1]];
+        return 'Landsat ' + m[1] + (sensor ? ' ' + sensor : '');
+      }
+      return namaSatelit(s);
+    }
+    function tanggalIndo(s) {
+      if (!s) { return ''; }
+      const b = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli',
+                 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+      const p = String(s).split('-');
+      if (p.length !== 3) { return s; }
+      return parseInt(p[2], 10) + ' ' + b[parseInt(p[1], 10) - 1] + ' ' + p[0];
+    }
+    function keteranganCitra(sat, tgl) {
+      const a = namaSatelit(sat), b = tanggalIndo(tgl);
+      if (!a && !b) { return ''; }
+      return 'Citra ' + a + (b ? ' · diakuisisi ' + b : '');
+    }
+
+    function titikTengah(ring) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      ring.forEach(function (p) {
+        minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]);
+        minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]);
+      });
+      function dalam(x, y) {
+        let d = false;
+        for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+          const a = ring[i], b = ring[j];
+          if ((a[1] > y) !== (b[1] > y) && x < (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]) + a[0]) { d = !d; }
+        }
+        return d;
+      }
+      function jarakSegmen(x, y, a, b) {
+        let dx = b[0] - a[0], dy = b[1] - a[1];
+        let t = (dx === 0 && dy === 0) ? 0 : ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy);
+        t = Math.max(0, Math.min(1, t));
+        const ex = a[0] + t * dx - x, ey = a[1] + t * dy - y;
+        return ex * ex + ey * ey;
+      }
+      let terbaik = null, jarakTerbaik = -1;
+      const N = 50;
+      for (let i = 0; i <= N; i++) {
+        for (let j = 0; j <= N; j++) {
+          const x = minX + (maxX - minX) * i / N, y = minY + (maxY - minY) * j / N;
+          if (!dalam(x, y)) { continue; }
+          let m = Infinity;
+          for (let k = 1; k < ring.length; k++) {
+            const s = jarakSegmen(x, y, ring[k - 1], ring[k]);
+            if (s < m) { m = s; }
+          }
+          if (m > jarakTerbaik) { jarakTerbaik = m; terbaik = [y, x]; }
+        }
+      }
+      return terbaik || [(minY + maxY) / 2, (minX + maxX) / 2];
+    }
+
+    // Tombol buka/tutup panel
+    function pasangLipat(panel, kepala, isi) {
+      const btn = kepala.querySelector('.lipat');
+      btn.addEventListener('click', function () {
+        const tutup = isi.style.display !== 'none';
+        isi.style.display = tutup ? 'none' : 'block';
+        panel.classList.toggle('tutup', tutup);
+        btn.innerHTML = tutup ? '&#9656;' : '&#9662;';
+      });
+    }
+
+    // Panel bisa digeser dengan menyeret judulnya
+    let zAtas = 2000;
+    function buatGeser(panel, kepala) {
+      let dx = 0, dy = 0, sx = 0, sy = 0, ox = 0, oy = 0, awal = null, geser = false;
+      kepala.style.touchAction = 'none';
+      kepala.addEventListener('pointerdown', function (e) {
+        if (e.target.closest('button')) { return; }
+        geser = true; sx = e.clientX; sy = e.clientY; ox = dx; oy = dy;
+        awal = panel.getBoundingClientRect();
+        // naikkan panel yang sedang digeser ke paling depan
+        zAtas++;
+        const sudut = panel.closest('.leaflet-top, .leaflet-bottom');
+        if (sudut) { sudut.style.zIndex = zAtas; }
+        panel.style.zIndex = zAtas;
+        kepala.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+      kepala.addEventListener('pointermove', function (e) {
+        if (!geser) { return; }
+        let ddx = e.clientX - sx, ddy = e.clientY - sy;
+        // jaga agar judul panel tidak keluar dari layar
+        ddx = Math.max(-awal.left - awal.width + 70, Math.min(window.innerWidth - 70 - awal.left, ddx));
+        ddy = Math.max(-awal.top, Math.min(window.innerHeight - 40 - awal.top, ddy));
+        dx = ox + ddx; dy = oy + ddy;
+        panel.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+      });
+      function selesai() { geser = false; }
+      kepala.addEventListener('pointerup', selesai);
+      kepala.addEventListener('pointercancel', selesai);
+    }
+
+    // ===== MEMUAT DATA =====
+    Promise.all([
+      fetch(FILE_MANGROVE).then(function (respon) {
+        if (!respon.ok) { throw new Error('File tidak ditemukan (kode ' + respon.status + ')'); }
+        return respon.json();
+      }),
+      fetch(FILE_DESA).then(function (respon) {
+        if (!respon.ok) { throw new Error('kode ' + respon.status); }
+        return respon.json();
+      }).catch(function (err) {
+        console.error('Batas desa gagal dimuat', err);
+        return null;
+      })
+    ])
+      .then(function (hasil) { mulai(hasil[0], hasil[1]); })
+      .catch(function (err) {
+        info.textContent = 'Gagal memuat data: ' + err.message + '. Tekan F12 lalu buka Console.';
+        console.error(err);
+      });
+
+    function mulai(data, dataDesa) {
+      const fitur = data.features || [];
+      if (fitur.length === 0) {
+        info.textContent = 'File data kosong.';
+        return;
+      }
+
+      // 1. Kelompokkan objek per tahun
+      const perTahun = {};
+      const luasTahun = {};
+      const satelitTahun = {};
+      const tanggalTahun = {};
+      fitur.forEach(function (f) {
+        const p = f.properties || {};
+        const t = parseInt(p[KOLOM_TAHUN], 10);
+        if (isNaN(t)) { return; }
+        if (!perTahun[t]) { perTahun[t] = []; luasTahun[t] = 0; }
+        perTahun[t].push(f);
+        luasTahun[t] += parseFloat(p[KOLOM_LUAS]) || 0;
+        satelitTahun[t] = p[KOLOM_SATELIT] || '';
+        tanggalTahun[t] = p[KOLOM_TANGGAL] || '';
+      });
+
+      const tahunAda = Object.keys(perTahun).map(Number).sort(function (a, b) { return a - b; });
+      if (tahunAda.length === 0) {
+        info.textContent = 'Kolom "' + KOLOM_TAHUN + '" tidak ditemukan. Kolom yang ada: ' +
+          Object.keys(fitur[0].properties || {}).join(', ') + '. Ubah KOLOM_TAHUN di kode.';
+        return;
+      }
+      const tMin = tahunAda[0];
+      const tMaks = tahunAda[tahunAda.length - 1];
+
+      const tahunAwanAda = TAHUN_AWAN.filter(function (t) { return luasTahun[t] !== undefined; });
+
+      // 2. Layer mangrove
+      const layerMangrove = L.layerGroup().addTo(map);
+      const cache = {};
+      let layerAktif = null;
+
+      function layerUntuk(t) {
+        if (!cache[t]) {
+          cache[t] = L.geoJSON({ type: 'FeatureCollection', features: perTahun[t] || [] }, {
+            pane: 'paneMangrove',
+            style: { fillColor: WARNA_MANGROVE, fillOpacity: 0.65, color: '#004d40', weight: 0.6 },
+            onEachFeature: function (feature, layer) {
+              layer.bindPopup(
+                '<b>Pendugaan Mangrove Tahun ' + t + '</b><br>' +
+                'Luas dugaan: ' + fmt(luasTahun[t]) + ' ha<br>' +
+                keteranganCitra(satelitTahun[t], tanggalTahun[t]) +
+                (berawan(t) ? '<br><span style="color:' + WARNA_AWAN + '">&#9729; Citra ada gangguan awan</span>' : ''));
+            }
+          });
+        }
+        return cache[t];
+      }
+
+      // 3b. Batas desa
+      let layerDesa = null, layerNamaDesa = null;
+      if (dataDesa && dataDesa.features && dataDesa.features.length > 0) {
+        const hitam = L.geoJSON(dataDesa, {
+          pane: 'paneDesa', interactive: false,
+          style: { color: '#000000', weight: 4, fill: false }
+        });
+        const kuning = L.geoJSON(dataDesa, {
+          pane: 'paneDesa', interactive: false,
+          style: { color: '#ffeb3b', weight: 4, dashArray: '10 10', fill: false }
+        });
+        layerDesa = L.layerGroup([hitam, kuning]).addTo(map);
+
+        const g = dataDesa.features[0].geometry;
+        const ring = g.type === 'LineString' ? g.coordinates
+                   : g.type === 'MultiLineString' ? g.coordinates[0]
+                   : g.type === 'Polygon' ? g.coordinates[0] : null;
+        if (ring) {
+          layerNamaDesa = L.layerGroup([
+            L.marker(titikTengah(ring), {
+              interactive: false, keyboard: false,
+              icon: L.divIcon({
+                className: 'label-desa',
+                html: '<span>Desa ' + NAMA_DESA + '</span>',
+                iconSize: [0, 0]
+              })
+            })
+          ]).addTo(map);
+        }
+      }
+
+      // 4. Zoom ke seluruh data
+      const batasPeta = L.geoJSON(data).getBounds();
+      if (dataDesa) { batasPeta.extend(L.geoJSON(dataDesa).getBounds()); }
+      const lebar = window.innerWidth >= 1000;
+      map.fitBounds(batasPeta, {
+        paddingTopLeft: [lebar ? 450 : 20, 20],
+        paddingBottomRight: [lebar ? 340 : 20, 20]
+      });
+
+      // 5. Elemen antarmuka
+      const slider = document.getElementById('slider');
+      const tahunBesar = document.getElementById('tahunBesar');
+      const satelitEl = document.getElementById('satelitTahun');
+      const catatanAwan = document.getElementById('catatanAwan');
+      const infoTahun = document.getElementById('infoTahun');
+      const grafik = document.getElementById('grafik');
+      const btnPlay = document.getElementById('btnPlay');
+      const kecepatan = document.getElementById('kecepatan');
+      const deretTahun = document.getElementById('deretTahun');
+
+      slider.min = tMin;
+      slider.max = tMaks;
+      slider.value = tMin;
+      document.getElementById('labelMin').textContent = 'Tahun ' + tMin;
+      document.getElementById('labelMaks').textContent = 'Tahun ' + tMaks;
+
+      // Tombol per tahun
+      const tombolTahun = {};
+      for (let t = tMin; t <= tMaks; t++) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = t;
+        b.title = 'Tahun ' + t + (satelitTahun[t] ? ' · ' + namaSatelit(satelitTahun[t]) : '') +
+                  (berawan(t) ? ' · ada gangguan awan' : '');
+        const kelas = [];
+        if (luasTahun[t] === undefined) { kelas.push('kosong'); }
+        else {
+          if (berawan(t)) { kelas.push('awan'); }
+        }
+        b.className = kelas.join(' ');
+        b.addEventListener('click', function () { setTahun(t); });
+        deretTahun.appendChild(b);
+        tombolTahun[t] = b;
+      }
+      let ket = [];
+      if (tahunAwanAda.length) { ket.push('<span style="color:' + WARNA_AWAN + '">&#9632;</span> garis atas biru = ada gangguan awan'); }
+      document.getElementById('ketTombol').innerHTML = ket.join(' &nbsp;·&nbsp; ');
+
+      // Catatan di bawah grafik
+      let cat = [];
+      if (tahunAwanAda.length) {
+        cat.push('<span style="color:' + WARNA_AWAN + '">&#9679;</span> <b>Berawan</b> (' + tahunAwanAda.join(', ') +
+                 '): ada gangguan awan sehingga sebaran mangrove berlubang. Citra tahun lainnya bersih dari awan.');
+      }
+      document.getElementById('catatan').innerHTML = cat.join('<br>');
+
+      // Ringkasan tertinggi / terendah
+      let tTinggi = tahunAda[0], tRendah = tahunAda[0];
+      tahunAda.forEach(function (t) {
+        if (luasTahun[t] > luasTahun[tTinggi]) { tTinggi = t; }
+        if (luasTahun[t] < luasTahun[tRendah]) { tRendah = t; }
+      });
+      document.getElementById('ringkas').innerHTML =
+        'Dugaan tertinggi: <b>' + fmt(luasTahun[tTinggi]) + ' ha</b> (' + tTinggi + ') &nbsp;·&nbsp; ' +
+        'Dugaan terendah: <b>' + fmt(luasTahun[tRendah]) + ' ha</b> (' + tRendah + ')';
+
+      // 6. Grafik garis (SVG) yang lebih detail
+      const W = 360, H = 210, kiri = 50, kanan = 12, atas = 18, bawah = 28;
+      const nilaiLuas = tahunAda.map(function (t) { return luasTahun[t]; });
+      let yMin, yMaks, langkah;
+      (function () {
+        const lo = Math.min.apply(null, nilaiLuas), hi = Math.max.apply(null, nilaiLuas);
+        const mentah = ((hi - lo) || Math.max(hi, 1)) * 1.2 / 5;
+        const p = Math.pow(10, Math.floor(Math.log10(mentah)));
+        const f = mentah / p;
+        langkah = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * p;
+        yMin = Math.max(0, Math.floor(lo / langkah) * langkah);
+        yMaks = Math.ceil(hi / langkah) * langkah;
+        if (yMaks === yMin) { yMaks = yMin + langkah; }
+      })();
+
+      function px(t) {
+        return kiri + (tMaks === tMin ? 0.5 : (t - tMin) / (tMaks - tMin)) * (W - kiri - kanan);
+      }
+      function py(v) {
+        return atas + (1 - (v - yMin) / (yMaks - yMin)) * (H - atas - bawah);
+      }
+
+      let tHover = null;
+
+      function gambarGrafik(tAktif) {
+        let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" font-family="sans-serif">';
+
+        // garis kisi + angka sumbu Y
+        for (let v = yMin; v <= yMaks + langkah / 1000; v += langkah) {
+          svg += '<line x1="' + kiri + '" y1="' + py(v).toFixed(1) + '" x2="' + (W - kanan) + '" y2="' + py(v).toFixed(1) +
+                 '" stroke="#e0e0e0"/>';
+          svg += '<text x="' + (kiri - 5) + '" y="' + (py(v) + 3.5).toFixed(1) + '" font-size="10" fill="#333" text-anchor="end">' +
+                 Math.round(v).toLocaleString('id-ID') + '</text>';
+        }
+        // sumbu X: tanda tiap tahun, angka tiap 4 tahun
+        svg += '<line x1="' + kiri + '" y1="' + (H - bawah) + '" x2="' + (W - kanan) + '" y2="' + (H - bawah) + '" stroke="#777"/>';
+        for (let t = tMin; t <= tMaks; t++) {
+          svg += '<line x1="' + px(t).toFixed(1) + '" y1="' + (H - bawah) + '" x2="' + px(t).toFixed(1) +
+                 '" y2="' + (H - bawah + 3) + '" stroke="#777"/>';
+          if ((t - tMin) % 4 === 0 && tMaks - t >= 3 || t === tMaks) {
+            svg += '<text x="' + px(t).toFixed(1) + '" y="' + (H - 10) + '" font-size="10" fill="#333" text-anchor="middle">' + t + '</text>';
+          }
+        }
+        svg += '<text x="9" y="' + (H / 2) + '" font-size="10" fill="#333" transform="rotate(-90 9 ' + (H / 2) + ')" text-anchor="middle">Luas dugaan (ha)</text>';
+
+        // blok rentang perbandingan yang sedang dipilih
+        const rb = banding[aktifBanding];
+        if (rb && luasTahun[rb.a] !== undefined && luasTahun[rb.b] !== undefined) {
+          const x1 = Math.min(px(rb.a), px(rb.b)), x2 = Math.max(px(rb.a), px(rb.b));
+          svg += '<rect x="' + x1.toFixed(1) + '" y="' + atas + '" width="' + (x2 - x1).toFixed(1) +
+                 '" height="' + (H - atas - bawah) + '" fill="rgba(30,136,229,0.13)"/>';
+        }
+
+        const garis = tahunAda.map(function (t, i) {
+          return (i === 0 ? 'M' : 'L') + px(t).toFixed(1) + ' ' + py(luasTahun[t]).toFixed(1);
+        }).join(' ');
+        svg += '<path d="' + garis + '" fill="none" stroke="#00a152" stroke-width="2.2"/>';
+
+        tahunAda.forEach(function (t) {
+          const warna = berawan(t) ? WARNA_AWAN : '#00a152';
+          svg += '<circle cx="' + px(t).toFixed(1) + '" cy="' + py(luasTahun[t]).toFixed(1) +
+                 '" r="3.2" fill="' + warna + '" stroke="white" stroke-width="0.8"/>';
+        });
+
+        // lingkaran penanda dua tahun perbandingan
+        if (rb) {
+          [rb.a, rb.b].forEach(function (t) {
+            if (luasTahun[t] === undefined) { return; }
+            svg += '<circle cx="' + px(t).toFixed(1) + '" cy="' + py(luasTahun[t]).toFixed(1) +
+                   '" r="7" fill="none" stroke="#1e88e5" stroke-width="2"/>';
+          });
+        }
+
+        // tahun aktif
+        if (luasTahun[tAktif] !== undefined) {
+          svg += '<line x1="' + px(tAktif) + '" y1="' + atas + '" x2="' + px(tAktif) +
+                 '" y2="' + (H - bawah) + '" stroke="#d50000" stroke-dasharray="3 3"/>';
+          svg += '<circle cx="' + px(tAktif) + '" cy="' + py(luasTahun[tAktif]) +
+                 '" r="5" fill="#d50000" stroke="white" stroke-width="1"/>';
+        }
+
+        // sorotan saat kursor di atas grafik
+        if (tHover !== null && luasTahun[tHover] !== undefined) {
+          svg += '<line x1="' + px(tHover).toFixed(1) + '" y1="' + atas + '" x2="' + px(tHover).toFixed(1) +
+                 '" y2="' + (H - bawah) + '" stroke="#666" stroke-width="1"/>';
+          svg += '<text x="' + (W - kanan) + '" y="11" font-size="12" font-weight="bold" fill="#111" text-anchor="end">' +
+                 tHover + ': ' + fmt(luasTahun[tHover]) + ' ha' + (berawan(tHover) ? ' (berawan)' : '') + '</text>';
+        }
+        svg += '</svg>';
+        grafik.innerHTML = svg;
+      }
+
+      function tahunDariKlik(e) {
+        const svgEl = grafik.querySelector('svg');
+        if (!svgEl) { return null; }
+        const rect = svgEl.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * (W / rect.width);
+        let t = Math.round(tMin + (x - kiri) / (W - kiri - kanan) * (tMaks - tMin));
+        return Math.max(tMin, Math.min(tMaks, t));
+      }
+      grafik.addEventListener('click', function (e) {
+        const t = tahunDariKlik(e);
+        if (t !== null) { setTahun(t); }
+      });
+      grafik.addEventListener('mousemove', function (e) {
+        const t = tahunDariKlik(e);
+        if (t !== tHover) { tHover = t; gambarGrafik(tahunAktif); }
+      });
+      grafik.addEventListener('mouseleave', function () {
+        tHover = null; gambarGrafik(tahunAktif);
+      });
+
+      // 6b. Perbandingan antar tahun (bisa banyak baris)
+      const MAKS_BANDING = 5;
+      const banding = [{ a: tMin, b: tMaks }];
+      let aktifBanding = 0;
+      const wadahBanding = document.getElementById('barisBanding');
+      const btnTambah = document.getElementById('btnTambah');
+
+      function hasilBanding(r) {
+        if (r.a === r.b) { return 'Pilih dua tahun yang berbeda.'; }
+        const la = luasTahun[r.a], lb = luasTahun[r.b];
+        if (la === undefined || lb === undefined) { return 'Data salah satu tahun tidak tersedia.'; }
+        const d = lb - la;
+        const warna = d >= 0 ? '#1b8a3a' : '#d50000';
+        let h = fmt(la) + ' ha &rarr; ' + fmt(lb) + ' ha<br>' +
+                '<b style="color:' + warna + '">' + (d >= 0 ? 'Diduga bertambah ' : 'Diduga berkurang ') + fmt(Math.abs(d)) + ' ha' +
+                (la > 0 ? ' (' + bertanda(d / la * 100) + '%)' : '') + '</b>';
+        const aw = [r.a, r.b].filter(berawan);
+        if (aw.length) {
+          h += '<br><span style="color:#1565c0;font-size:12.5px">&#9729; Tahun ' + aw.join(' & ') +
+               ' berawan, luas bisa terhitung lebih kecil.</span>';
+        }
+        return h;
+      }
+
+      function renderBanding() {
+        wadahBanding.innerHTML = '';
+        banding.forEach(function (r, i) {
+          const row = document.createElement('div');
+          row.className = 'rowB' + (i === aktifBanding ? ' aktif' : '');
+          const opsi = function (pilih) {
+            return tahunAda.map(function (t) {
+              return '<option value="' + t + '"' + (t === pilih ? ' selected' : '') + '>' + t + '</option>';
+            }).join('');
+          };
+          row.innerHTML =
+            (banding.length > 1 ? '<button class="hapus" type="button" title="Hapus">&times;</button>' : '') +
+            'Dari tahun <select class="sa">' + opsi(r.a) + '</select> ke tahun <select class="sb">' + opsi(r.b) + '</select>' +
+            '<div class="hasilB">' + hasilBanding(r) + '</div>';
+          row.addEventListener('click', function () {
+            if (aktifBanding !== i) {
+              aktifBanding = i;
+              Array.prototype.forEach.call(wadahBanding.children, function (el, k) {
+                el.classList.toggle('aktif', k === i);
+              });
+              gambarGrafik(tahunAktif);
+            }
+          });
+          row.querySelector('.sa').addEventListener('change', function () {
+            r.a = parseInt(this.value, 10); aktifBanding = i; renderBanding(); gambarGrafik(tahunAktif);
+          });
+          row.querySelector('.sb').addEventListener('change', function () {
+            r.b = parseInt(this.value, 10); aktifBanding = i; renderBanding(); gambarGrafik(tahunAktif);
+          });
+          const h = row.querySelector('.hapus');
+          if (h) {
+            h.addEventListener('click', function (e) {
+              e.stopPropagation();
+              banding.splice(i, 1);
+              aktifBanding = Math.min(aktifBanding, banding.length - 1);
+              renderBanding(); gambarGrafik(tahunAktif);
+            });
+          }
+          wadahBanding.appendChild(row);
+        });
+        btnTambah.disabled = banding.length >= MAKS_BANDING;
+      }
+      btnTambah.addEventListener('click', function () {
+        if (banding.length >= MAKS_BANDING) { return; }
+        // pembanding baru: dari tahun awal ke tahun yang sedang tampil
+        banding.push({ a: tMin, b: tahunAktif === tMin ? tMaks : tahunAktif });
+        aktifBanding = banding.length - 1;
+        renderBanding(); gambarGrafik(tahunAktif);
+      });
+
+      // 7. Mengganti tahun
+      let tahunAktif = tMin;
+
+      function setTahun(t) {
+        t = Math.max(tMin, Math.min(tMaks, t));
+        tahunAktif = t;
+        slider.value = t;
+        tahunBesar.textContent = 'Tahun ' + t;
+        satelitEl.textContent = keteranganCitra(satelitTahun[t], tanggalTahun[t]);
+
+        // catatan awan
+        if (berawan(t)) {
+          catatanAwan.style.display = 'block';
+          catatanAwan.innerHTML = '&#9729; <b>Catatan:</b> citra tahun ' + t + ' ada gangguan awan, sehingga sebaran ' +
+            'mangrove tampak berlubang. Luas dugaan tahun ini kemungkinan terhitung lebih kecil.';
+        } else {
+          catatanAwan.style.display = 'none';
+        }
+
+        // sumber data di legenda (hanya nama citra dan tanggal yang berubah)
+        const srcCitra = document.getElementById('srcCitra');
+        const srcAwan = document.getElementById('srcAwan');
+        if (satelitTahun[t]) {
+          srcCitra.textContent = 'Citra ' + namaSumber(satelitTahun[t]) +
+            ', Collection 2 Level 2 Surface Reflectance (resolusi 30 m)' +
+            (tanggalTahun[t] ? ' | ' + tanggalIndo(tanggalTahun[t]) : '');
+        } else {
+          srcCitra.textContent = 'Citra: tidak ada data untuk tahun ini';
+        }
+        if (berawan(t)) {
+          srcAwan.className = 'berawan';
+          srcAwan.innerHTML = '&#9729; Kondisi citra: ada gangguan awan';
+        } else {
+          srcAwan.className = 'bersih';
+          srcAwan.innerHTML = '&#10003; Kondisi citra: bersih dari awan';
+        }
+
+        Object.keys(tombolTahun).forEach(function (k) {
+          tombolTahun[k].classList.toggle('aktif', Number(k) === t);
+        });
+
+        if (layerAktif) { layerMangrove.removeLayer(layerAktif); }
+        layerAktif = layerUntuk(t);
+        layerMangrove.addLayer(layerAktif);
+
+        if (luasTahun[t] === undefined) {
+          infoTahun.innerHTML = '<b>Tahun ' + t + '</b><br>Tidak ada data untuk tahun ini.';
+        } else {
+          let h = '<b>Tahun ' + t + '</b>: luas dugaan <b>' + fmt(luasTahun[t]) + ' ha</b>';
+          if (luasTahun[t - 1] !== undefined) {
+            const d = luasTahun[t] - luasTahun[t - 1];
+            h += '<br>Dari tahun ' + (t - 1) + ': <span style="color:' +
+                 (d >= 0 ? '#1b8a3a' : '#d50000') + '">' + bertanda(d) + ' ha</span>';
+          }
+          infoTahun.innerHTML = h;
+        }
+        gambarGrafik(t);
+      }
+
+      // 8. Slider, play, kecepatan
+      slider.addEventListener('input', function () { setTahun(parseInt(slider.value, 10)); });
+
+      let timer = null;
+      function berhenti() {
+        if (timer) { clearInterval(timer); timer = null; }
+        btnPlay.innerHTML = '&#9654;';
+      }
+      function mulaiTimer() {
+        if (timer) { clearInterval(timer); }
+        timer = setInterval(function () {
+          if (tahunAktif >= tMaks) { berhenti(); return; }
+          setTahun(tahunAktif + 1);
+        }, parseInt(kecepatan.value, 10));
+        btnPlay.innerHTML = '&#10074;&#10074;';
+      }
+      btnPlay.addEventListener('click', function () {
+        if (timer) { berhenti(); return; }
+        if (tahunAktif >= tMaks) { setTahun(tMin); }
+        mulaiTimer();
+      });
+      kecepatan.addEventListener('change', function () { if (timer) { mulaiTimer(); } });
+
+      const pg = document.getElementById('panelGrafik'), pw = document.getElementById('panelWaktu');
+      pasangLipat(pg, document.getElementById('kepalaGrafik'), document.getElementById('isiGrafik'));
+      pasangLipat(pw, document.getElementById('kepalaWaktu'), document.getElementById('isiWaktu'));
+      buatGeser(pg, document.getElementById('kepalaGrafik'));
+      buatGeser(pw, document.getElementById('kepalaWaktu'));
+
+      ['panelGrafik', 'panelWaktu'].forEach(function (id) {
+        L.DomEvent.disableClickPropagation(document.getElementById(id));
+      });
+      L.DomEvent.disableScrollPropagation(document.getElementById('panelGrafik'));
+
+      // 9. Legenda
+      const legenda = L.control({ position: 'topright' });
+      legenda.onAdd = function () {
+        const div = L.DomUtil.create('div', 'legenda');
+        const kepala = L.DomUtil.create('div', 'kepala', div);
+        kepala.innerHTML = '<span>Legenda Peta</span><button class="lipat" type="button" title="Buka/tutup">&#9662;</button>';
+        const isi = L.DomUtil.create('div', 'isi', div);
+
+        function baris(nama, simbol, layer) {
+          const b = L.DomUtil.create('label', '', isi);
+          b.innerHTML = '<input type="checkbox" checked>' + simbol + nama;
+          b.querySelector('input').addEventListener('change', function () {
+            if (this.checked) { layer.addTo(map); }
+            else { map.removeLayer(layer); }
+          });
+        }
+
+        // Batas desa dan nama desa digabung dalam satu kotak centang
+        if (layerDesa) {
+          const gabung = L.layerGroup(layerNamaDesa ? [layerDesa, layerNamaDesa] : [layerDesa]).addTo(map);
+          baris('Batas desa',
+                '<i style="height:4px;border:0;background:repeating-linear-gradient(' +
+                '90deg,#ffeb3b 0,#ffeb3b 5px,#000 5px,#000 10px)"></i>', gabung);
+        }
+        baris('Mangrove', '<i style="background:' + WARNA_MANGROVE + '"></i>', layerMangrove);
+
+        // Sumber data (di bawah legenda)
+        const sumber = L.DomUtil.create('div', 'sumber', isi);
+        sumber.innerHTML =
+          '<b>SUMBER DATA:</b>' +
+          '<ol><li id="srcCitra"></li>' +
+          '<li>Badan Informasi Geospasial | BIG 2023</li>' +
+          '<li>Analisis: Indeks MVI (Baloloy dkk., 2020), ambang &ge; 5</li></ol>' +
+          '<div id="srcAwan"></div>' +
+          '<div id="pendugaan">Luas mangrove merupakan <b>hasil pendugaan</b> dari analisis citra satelit, ' +
+          'bukan hasil pengukuran data lapangan.</div>';
+
+        pasangLipat(div, kepala, isi);
+        buatGeser(div, kepala);
+        L.DomEvent.disableClickPropagation(div);
+        return div;
+      };
+      legenda.addTo(map);
+
+      // Panel pilih tahun ditaruh di kolom kanan, tepat di bawah legenda
+      const kontrolWaktu = L.control({ position: 'topright' });
+      kontrolWaktu.onAdd = function () { return document.getElementById('panelWaktu'); };
+      kontrolWaktu.addTo(map);
+
+      // 10. Tampilkan panel
+      document.getElementById('panelGrafik').style.display = 'block';
+      document.getElementById('panelWaktu').style.display = 'block';
+      renderBanding();
+      setTahun(tMin);
+      info.style.display = 'none';
+    }
+  </script>
+</body>
+</html>
